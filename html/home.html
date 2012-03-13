@@ -43,7 +43,7 @@
                       		    </tr>
                       		  </table>
                            </form>
-                           	{{range .}}
+                           {{range .Entries}}
                         		<hr />
                         		<p>{{.Title}}  Submitter:
                         		{{if .Email}}<a href="mailto:{{.Email}}">
@@ -54,19 +54,23 @@
                       		  </p>
                       		{{end}}
                       		<hr />
-<!--
-                      		<c:forEach begin="1" end="${pages.totalPage}" varStatus="i">
-                      			<c:if test="${pages.currentPage != i.index}" var="indexFlg" />
-                      				<c:if test="${indexFlg}"><a href="?page=${i.index}"></c:if>
-                      				${i.index}<c:if test="${indexFlg}"></a></c:if>  
-                      		</c:forEach>
-                      		<c:if test="${pages.currentPage != '1'}" var="prevFlg" />
-                      		<c:if test="${pages.currentPage != pages.totalPage}" var="nextFlg" />
-                      			<c:if test="${prevFlg}"><a href="?page=${pages.currentPage - 1}"></c:if>
-                      			Previous<c:if test="${prevFlg}"></a></c:if>  
-                      			<c:if test="${nextFlg}"><a href="?page=${pages.currentPage + 1}"></c:if>
-                      			Next<c:if test="${nextFlg}"></a></c:if>
--->
+                            {{range .Pages}}	
+                            {{if .IsCurrentPage}}
+                                    {{.PageNum}}
+                                {{else}}
+                                    <a href="?page={{.PageNum}}">{{.PageNum}}</a>
+                                {{end}}
+                            {{end}}
+                            {{if .IsFirstPage}}
+                                    Previous
+                                {{else}}
+                                <a href="?page={{printf "%d" .PreviousPage}}">Previous</a>
+                                {{end}}
+                                {{if .IsLastPage}}
+                                    Next
+                                {{else}}
+                                <a href="?page={{printf "%d" .NextPage}}">Next</a>
+                                {{end}}
                         <!-- InstanceEndEditable -->
                         </td>
                     </tr>    
