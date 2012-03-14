@@ -1,0 +1,6 @@
+A new post has been made fro Legacy-BBS-Go as the following.
+
+Sender: {{.Name}}
+Title: {{.Title}}
+Message:
+{{.Message}}

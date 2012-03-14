@@ -16,31 +16,33 @@
 					<tr height="25">
 						<td colspan="3" valign="top" height="25">
                         <!-- InstanceBeginEditable name="Region2" -->
-                        	<form method="POST" action="write">
+                        	<form method="POST" action="">
                         		<table width="100%" border="0">
+                                  {{with .Errors}}
                         		  <tr>
                         		    <td width="9%">Submitter</td>
-                        		    <td width="91%"><input type="text" name="name" maxlength="32" cssStyle="width:150px;" /><br />
-                        		    <font color="red"></font></td>
+                                    <td width="91%"><input type="text" name="name" value="{{.Name}}" maxlength="32" cssStyle="width:150px;" /><br />
+                                        {{if .NameError}}<font color="red">Enter a submitter</font>{{end}}</td>
                       		    </tr>
                         		  <tr>
                         		    <td>Mail</td>
-                        		    <td><input type="text" name="email" maxlength="64" cssStyle="width:150px;" /></td>
+                        		    <td><input type="text" name="email" value="{{.Email}}" maxlength="64" cssStyle="width:150px;" /></td>
                       		    </tr>
                         		  <tr>
                         		    <td>Title</td>
-                        		    <td><input type="text" name="title" maxlength="64" cssStyle="width:150px;" /></td>
+                        		    <td><input type="text" name="title" value="{{.Title}}" maxlength="64" cssStyle="width:150px;" /></td>
                       		    </tr>
                         		  <tr>
                         		    <td>Message</td>
-                        		    <td><textarea name="message" cols="45" rows="5"></textarea>
+                        		    <td><textarea name="message" cols="45" rows="5">{{.Message}}</textarea>
                         		      <br />
-                        		    <font color="red"></font></td>
+                                      {{if .MessageError}}<font color="red">Enter a message</font>{{end}}</td>
                       		    </tr>
                       		    <tr>
                         		    <td></td>
                         		    <td><input type="submit" name="submit" value="Submit" /></td>
                       		    </tr>
+                                {{end}}
                       		  </table>
                            </form>
                            {{range .Entries}}
@@ -49,8 +51,8 @@
                         		{{if .Email}}<a href="mailto:{{.Email}}">
 								{{end}}
                         		{{.Name}}{{if .Email}}</a>{{end}}
-                        		  Date:{{.Date}} </p>
-                        		<p>{{.Message}}
+                        		  Date: {{.Date}} </p>
+                              <p>{{.Message}}
                       		  </p>
                       		{{end}}
                       		<hr />

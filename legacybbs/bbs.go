@@ -3,8 +3,10 @@ package legacybbs
 import (
 	"appengine"
 	"appengine/datastore"
+	"appengine/taskqueue"
 	"fmt"
 	"http"
+	"html"
 	"template"
 	"time"
 	"strings"
@@ -46,49 +48,68 @@ type Page struct {
 }
 
 type Validation struct {
-    Name bool
-    Message bool
+    NameError bool
+    MessageError bool
+	Name string
+	Email string
+	Title string
+	Message string
 }
 
 var sanitizing_char [][]string = [][]string{ { "&", "<", ">", "'", "\"" }, { "&amp;", "&lt;", "&gt;", "&#39;", "&quot;" } }
 
 func init() {
 	http.HandleFunc("/", handler)
-	http.HandleFunc("/write", write)
+	http.HandleFunc("/task", task)
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
+	if r.Method == "GET" {
+		var emptyValidation Validation
+		display(w, r, emptyValidation)
+	} else if r.Method == "POST" {
+		write(w, r)
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprint(w, "Not Found")
+	}
+}
 
+func display(w http.ResponseWriter, r *http.Request, v Validation) {
+	c := appengine.NewContext(r)
+	
+	// Retrieves current page number from request parameter
     currentPage, _ := strconv.Atoi(r.FormValue("page"))
     if currentPage == 0 {
         currentPage = 1
     }
 	
+	// Retrieves entry count and get number of last page
 	qCount := datastore.NewQuery("Entry")
 	count, err := qCount.Count(c)
 	if err != nil {
 		http.Error(w, err.String(), http.StatusInternalServerError)
 	}
+    lastPage :=  int(math.Ceil(float64(count) / 10.0))
 
-    maxPage :=  int(math.Ceil(float64(count) / 10.0))
-
-	q := datastore.NewQuery("Entry").Order("-Date").Offset((currentPage - 1) * 10).Limit(10)
+	// Retrieves 10 entries which are diplayed in current page
+	q := qCount.Order("-Date").Offset((currentPage - 1) * 10).Limit(10)
 	dataCount, err := q.Count(c)
 	if err != nil {
 		http.Error(w, err.String(), http.StatusInternalServerError)
 	}
-	
 	entries := make([]Entry, 0, dataCount)
 	if _, err := q.GetAll(c, &entries); err != nil {
 		http.Error(w, err.String(), http.StatusInternalServerError)
 		return
 	}
 	
+	// Makes view object for displayed html tamplate
     view := new(View)
     view.PreviousPage = currentPage - 1
     view.NextPage = currentPage + 1
-    view.Pages = make([]Page, maxPage)
+    view.Pages = make([]Page, lastPage)
     for i := 0; i < len(view.Pages); i++ {
         view.Pages[i].PageNum = i + 1
         if currentPage == i + 1 {
@@ -100,7 +121,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
     if currentPage == 1 {
         view.IsFirstPage = true
     }
-    if currentPage == maxPage {
+    if currentPage == lastPage {
         view.IsLastPage = true
     }
 	view.Entries = make([]Entry_view, dataCount)
@@ -112,7 +133,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		localTime := time.SecondsToLocalTime(int64(entry.Date) / 1000000)
 		view.Entries[i].Date = fmt.Sprintf("%04d/%02d/%02d %02d:%02d:%02d", localTime.Year, localTime.Month, localTime.Day, localTime.Hour, localTime.Minute, localTime.Second)		
 	}
-	
+	view.Errors = v
+    
+	// Sets view object to template and displays html
 	var homeTemplate = template.Must(template.New("html").ParseFile("html/home.html"))
 	if err := homeTemplate.Execute(w, view); err != nil {
 		http.Error(w, "aa" + err.String(), http.StatusInternalServerError)
@@ -121,32 +144,63 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func write(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		w.WriteHeader(http.StatusNotFound)
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprint(w, "Not Found")
-	}
 	
 	c := appengine.NewContext(r)
 	
+    // Retrieves form data
 	var e Entry
 	e.Name = r.FormValue("name")
 	e.Email = r.FormValue("email")
 	e.Title = r.FormValue("title")
 	e.Message = r.FormValue("message")
-	// Sanitizing
-	for i := 0; i < len(sanitizing_char[0]); i++ {
-		e.Name = strings.Replace(e.Name, sanitizing_char[0][i], sanitizing_char[1][i], -1)
-		e.Email = strings.Replace(e.Email, sanitizing_char[0][i], sanitizing_char[1][i], -1)
-		e.Title = strings.Replace(e.Title, sanitizing_char[0][i], sanitizing_char[1][i], -1)
-		e.Message = strings.Replace(e.Message, sanitizing_char[0][i], sanitizing_char[1][i], -1)
-	}
-	e.Date = datastore.SecondsToTime(time.Seconds())
-	e.Ip = r.RemoteAddr
+
+    // Validates form data
+    hasError := false
+	var errors Validation
+    if e.Name == "" {
+        errors.NameError = true
+        hasError = true
+    }
+    if e.Message == "" {
+        errors.MessageError = true
+        hasError = true
+    }
+
+	// Display errors in html if errors present
+    if hasError {
+		errors.Name = e.Name
+		errors.Email = e.Email
+		errors.Title = e.Title
+		errors.Message = e.Message
+        display(w, r, errors)
+        return
+    }
+
+	// Sanitizes form strings
+   	e.Name = html.EscapeString(e.Name)
+   	e.Email = html.EscapeString(e.Email)
+    e.Title = html.EscapeString(e.Title)
+   	e.Message = html.EscapeString(e.Message)
+   	e.Date = datastore.SecondsToTime(time.Seconds())
+   	e.Ip = r.RemoteAddr
+   	
+	// Writes form data to datastore
+   	if _, err := datastore.Put(c, datastore.NewIncompleteKey(c, "Entry", nil), &e); err != nil {
+    	http.Error(w, "Internal Server Error: " + err.String(), http.StatusInternalServerError)
+   	}
 	
-	if _, err := datastore.Put(c, datastore.NewIncompleteKey(c, "Entry", nil), &e); err != nil {
+	// Add past notification email process to TaskQueue
+	param := make(map[string][]string)
+	param["name"] = []string{e.Name}
+	param["title"] = []string{e.Title}
+	param["message"] = []string{e.Message}
+	task := taskqueue.NewPOSTTask("/task", param)
+	if _, err := taskqueue.Add(c, task, ""); err != nil {
 		http.Error(w, "Internal Server Error: " + err.String(), http.StatusInternalServerError)
+		return
 	}
-	
+
+    c.Infof(e.Name + " " + e.Ip)
+
 	http.Redirect(w, r, "/", http.StatusFound)
 }
