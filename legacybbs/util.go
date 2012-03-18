@@ -3,21 +3,20 @@ package legacybbs
 import (
 	"appengine"
 	"appengine/mail"
-	"os"
-	"io/ioutil"
-	"json"
-	"http"
 	"bytes"
-	"template"
+	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"text/template"
 )
 
 type MailConfig struct {
 	Sender string
-	To string
+	To     string
 }
 
 // Retrieves configuration for sending post notification mail
-func ParseConfig(file string) (MailConfig, os.Error) {
+func ParseConfig(file string) (MailConfig, error) {
 	var config MailConfig
 	jsonString, err := ioutil.ReadFile(file)
 	if err != nil {
@@ -33,24 +32,24 @@ func ParseConfig(file string) (MailConfig, os.Error) {
 // Defines task in TaskQueue
 func task(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	
+
 	var entry Entry
 	entry.Name = r.FormValue("name")
 	entry.Title = r.FormValue("title")
 	entry.Message = r.FormValue("message")
-	
+
 	if err := SendMail(c, entry); err != nil {
-		c.Errorf("Mail sending error: " + err.String())
+		c.Errorf("Mail sending error: " + err.Error())
 	}
 }
 
 // Sends post notification mail
-func SendMail(c appengine.Context, entry Entry) os.Error {
+func SendMail(c appengine.Context, entry Entry) error {
 	config, err := ParseConfig("./config/mailConfig.json")
 	if err != nil {
 		return err
 	}
-	
+
 	// Prepares email message
 	msg := new(mail.Message)
 	msg.Sender = config.Sender
@@ -58,7 +57,7 @@ func SendMail(c appengine.Context, entry Entry) os.Error {
 	msg.To[0] = config.To
 	msg.Subject = "New post made from Legacy-BBS-Go"
 	var body bytes.Buffer
-	var mailTemplate = template.Must(template.New("mail").ParseFile("template/notificationMailTemplate.txt"))
+	var mailTemplate = template.Must(template.ParseFiles("template/notificationMailTemplate.txt"))
 	if err := mailTemplate.Execute(&body, entry); err != nil {
 		return err
 	}
@@ -66,8 +65,8 @@ func SendMail(c appengine.Context, entry Entry) os.Error {
 	if err := mail.Send(c, msg); err != nil {
 		return err
 	}
-	
+
 	c.Infof("Notification mail sent to \"" + config.To + "\"")
-	
+
 	return nil
 }
