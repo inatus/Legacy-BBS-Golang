@@ -56,8 +56,6 @@ type Validation struct {
 	Message      string
 }
 
-var sanitizing_char [][]string = [][]string{{"&", "<", ">", "'", "\""}, {"&amp;", "&lt;", "&gt;", "&#39;", "&quot;"}}
-
 func init() {
 	http.HandleFunc("/", handler)
 	http.HandleFunc("/task", task)
