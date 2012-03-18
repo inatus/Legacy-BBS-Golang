@@ -56,8 +56,6 @@ type Validation struct {
 	Message      string
 }
 
-var sanitizing_char [][]string = [][]string{{"&", "<", ">", "'", "\""}, {"&amp;", "&lt;", "&gt;", "&#39;", "&quot;"}}
-
 func init() {
 	http.HandleFunc("/", handler)
 	http.HandleFunc("/task", task)
@@ -130,8 +128,6 @@ func display(w http.ResponseWriter, r *http.Request, v Validation) {
 		view.Entries[i].Email = entry.Email
 		view.Entries[i].Title = entry.Title
 		view.Entries[i].Message = strings.Replace(entry.Message, "\n", "<br />", -1)
-		// localTime := time.Unix(int64(entry.Date)/1000000, 0)
-		// view.Entries[i].Date = fmt.Sprintf("%04d/%02d/%02d %02d:%02d:%02d", localTime.Year, localTime.Month, localTime.Day, localTime.Hour, localTime.Minute, localTime.Second)
 		view.Entries[i].Date = entry.Date.Format("2006/01/02 15:04:05")
 	}
 	view.Errors = v
